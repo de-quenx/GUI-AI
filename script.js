@@ -12,6 +12,14 @@ class GuiAiBeta {
         this.currentConversation = [];
         this.sessionId = this.generateSessionId();
         this.currentTheme = localStorage.getItem('gui-ai-theme') || 'light';
+        this.themes = ['light', 'dark', 'blue', 'purple'];
+        this.themeIcons = {
+            'light': 'fa-sun',
+            'dark': 'fa-moon', 
+            'blue': 'fa-water',
+            'purple': 'fa-gem'
+        };
+        this.currentPanel = 'welcome'; // 'welcome', 'models', 'chat'
         
         this.init();
     }
@@ -21,29 +29,40 @@ class GuiAiBeta {
         this.initTheme();
         this.bindEvents();
         this.renderApiList();
-        this.loadAvailableModels();
+        this.checkAndShowInterface();
+        await this.loadConversationHistory();
     }
 
     initTheme() {
         document.body.setAttribute('data-theme', this.currentTheme);
-        this.updateActiveThemeButton();
+        this.updateThemeIcon();
     }
 
-    updateActiveThemeButton() {
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.dataset.theme === this.currentTheme) {
-                btn.classList.add('active');
-            }
-        });
+    updateThemeIcon() {
+        const themeBtn = document.getElementById('themeToggle');
+        if (themeBtn) {
+            const icon = themeBtn.querySelector('i');
+            icon.className = `fas ${this.themeIcons[this.currentTheme]}`;
+        }
     }
 
-    changeTheme(theme) {
-        this.currentTheme = theme;
-        document.body.setAttribute('data-theme', theme);
-        localStorage.setItem('gui-ai-theme', theme);
-        this.updateActiveThemeButton();
-        this.showNotification(`Tema ${theme} diaktifkan`, 'success');
+    toggleTheme() {
+        const currentIndex = this.themes.indexOf(this.currentTheme);
+        const nextIndex = (currentIndex + 1) % this.themes.length;
+        this.currentTheme = this.themes[nextIndex];
+        
+        document.body.setAttribute('data-theme', this.currentTheme);
+        localStorage.setItem('gui-ai-theme', this.currentTheme);
+        this.updateThemeIcon();
+        
+        const themeNames = {
+            'light': 'Light',
+            'dark': 'Dark',
+            'blue': 'Blue Ocean',
+            'purple': 'Purple Galaxy'
+        };
+        
+        this.showNotification(`Tema ${themeNames[this.currentTheme]} diaktifkan`, 'success');
     }
 
     generateSessionId() {
@@ -51,66 +70,196 @@ class GuiAiBeta {
     }
 
     bindEvents() {
-        document.getElementById('apiForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.addApi();
-        });
-
-        document.getElementById('toggleKey').addEventListener('click', () => {
-            this.togglePasswordVisibility();
-        });
-
-        document.getElementById('sendMessage').addEventListener('click', () => {
-            this.sendMessage();
-        });
-
-        document.getElementById('chatInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+        // Form events
+        const apiForm = document.getElementById('apiForm');
+        if (apiForm) {
+            apiForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                this.sendMessage();
-            }
-        });
-
-        document.getElementById('clearChat').addEventListener('click', () => {
-            this.clearChat();
-        });
-
-        document.getElementById('selectedModel').addEventListener('change', (e) => {
-            if (e.target.value) {
-                const [apiId, modelId] = e.target.value.split(':');
-                const api = this.apis.find(a => a.id === apiId);
-                const models = this.getAvailableModels(api);
-                const model = models.find(m => m.id === modelId);
-                this.selectModelFromDropdown(apiId, model);
-            }
-        });
-
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.changeTheme(btn.dataset.theme);
+                this.addApi();
             });
+        }
+
+        const toggleKey = document.getElementById('toggleKey');
+        if (toggleKey) {
+            toggleKey.addEventListener('click', () => {
+                this.togglePasswordVisibility();
+            });
+        }
+
+        // Panel switching events
+        const showModelsBtn = document.getElementById('showModelsBtn');
+        if (showModelsBtn) {
+            showModelsBtn.addEventListener('click', () => {
+                this.showPanel('models');
+            });
+        }
+
+        const showChatBtn = document.getElementById('showChatBtn');
+        if (showChatBtn) {
+            showChatBtn.addEventListener('click', () => {
+                this.showPanel('chat');
+            });
+        }
+
+        // Chat events
+        const sendMessage = document.getElementById('sendMessage');
+        if (sendMessage) {
+            sendMessage.addEventListener('click', () => {
+                this.sendMessage();
+            });
+        }
+
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+        }
+
+        const clearChat = document.getElementById('clearChat');
+        if (clearChat) {
+            clearChat.addEventListener('click', () => {
+                this.clearChat();
+            });
+        }
+
+        const selectedModel = document.getElementById('selectedModel');
+        if (selectedModel) {
+            selectedModel.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    const [apiId, modelId] = e.target.value.split(':');
+                    const api = this.apis.find(a => a.id === apiId);
+                    if (api) {
+                        const models = this.getAvailableModels(api);
+                        const model = models.find(m => m.id === modelId);
+                        if (model) {
+                            this.selectModelFromDropdown(apiId, model);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Control events
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                this.toggleTheme();
+            });
+        }
+
+        const exportBtn = document.getElementById('exportBtn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.exportData();
+            });
+        }
+
+        const importBtn = document.getElementById('importBtn');
+        if (importBtn) {
+            importBtn.addEventListener('click', () => {
+                const importInput = document.getElementById('importInput');
+                if (importInput) {
+                    importInput.click();
+                }
+            });
+        }
+
+        const testAllBtn = document.getElementById('testAllBtn');
+        if (testAllBtn) {
+            testAllBtn.addEventListener('click', () => {
+                this.testAllConnections();
+            });
+        }
+
+        const reportBtn = document.getElementById('reportBtn');
+        if (reportBtn) {
+            reportBtn.addEventListener('click', () => {
+                this.generateApiKeyReport();
+            });
+        }
+
+        const resetBtn = document.getElementById('resetBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                this.resetAllData();
+            });
+        }
+
+        const importInput = document.getElementById('importInput');
+        if (importInput) {
+            importInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    this.importData(e.target.files[0]);
+                }
+            });
+        }
+    }
+
+    showPanel(panelName) {
+        // Hide all panels
+        const panels = document.querySelectorAll('.content-panel');
+        panels.forEach(panel => {
+            panel.classList.remove('active');
         });
+
+        // Update button states
+        const buttons = document.querySelectorAll('.top-btn');
+        buttons.forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Show selected panel
+        let targetPanel;
+        let targetButton;
+
+        switch(panelName) {
+            case 'models':
+                targetPanel = document.getElementById('modelsPanel');
+                targetButton = document.getElementById('showModelsBtn');
+                break;
+            case 'chat':
+                targetPanel = document.getElementById('chatPanel');
+                targetButton = document.getElementById('showChatBtn');
+                break;
+            default:
+                targetPanel = document.getElementById('welcomePanel');
+                break;
+        }
+
+        if (targetPanel) {
+            targetPanel.classList.add('active');
+        }
+
+        if (targetButton) {
+            targetButton.classList.add('active');
+        }
+
+        this.currentPanel = panelName;
     }
 
     detectApiProvider(apiKey) {
         const patterns = {
             'openai': {
-                pattern: /^sk-[a-zA-Z0-9-_]{20,}$/,
+                pattern: /^sk-[a-zA-Z0-9]{20,}$/,
                 name: 'OpenAI',
                 icon: 'fa-brain'
             },
             'anthropic': {
-                pattern: /^sk-ant-[a-zA-Z0-9-_]{95}$/,
+                pattern: /^sk-ant-api03-[a-zA-Z0-9\-_]{95}$/,
                 name: 'Anthropic',
                 icon: 'fa-robot'
             },
             'google': {
-                pattern: /^[a-zA-Z0-9-_]{39}$/,
+                pattern: /^[a-zA-Z0-9\-_]{39}$/,
                 name: 'Google',
                 icon: 'fa-search'
             },
             'agentrouter': {
-                pattern: /^[a-zA-Z0-9-_]{32,}$/,
+                pattern: /^[a-zA-Z0-9\-_]{32,}$/,
                 name: 'AgentRouter',
                 icon: 'fa-route'
             }
@@ -145,37 +294,40 @@ class GuiAiBeta {
                 { id: 'gpt-4', name: 'GPT-4 via AgentRouter', description: 'OpenAI GPT-4 through AgentRouter' },
                 { id: 'claude-3-opus', name: 'Claude 3 Opus via AgentRouter', description: 'Anthropic Claude through AgentRouter' },
                 { id: 'gemini-pro', name: 'Gemini Pro via AgentRouter', description: 'Google Gemini through AgentRouter' }
+            ],
+            'unknown': [
+                { id: 'gpt-3.5-turbo', name: 'Default Model', description: 'Default AI model' }
             ]
         };
 
-        return modelConfigs[api.provider] || [
-            { id: 'custom-model', name: 'Custom Model', description: 'Custom AI model endpoint' }
-        ];
+        return modelConfigs[api.provider] || modelConfigs['unknown'];
     }
 
     validateApiKey(key) {
-        const patterns = [
-            /^sk-[a-zA-Z0-9-_]{20,}$/,
-            /^sk-ant-[a-zA-Z0-9-_]{95}$/,
-            /^[a-zA-Z0-9-_]{32,}$/
-        ];
+        if (!key || key.trim().length === 0) {
+            return false;
+        }
         
-        return patterns.some(pattern => pattern.test(key));
+        return key.trim().length >= 20;
     }
 
-    addApi() {
+    async addApi() {
         if (this.security.checkForSuspiciousActivity()) {
             this.showNotification('Terlalu banyak request, coba lagi nanti', 'error');
             return;
         }
 
-        const name = this.security.sanitizeInput(document.getElementById('apiName').value);
-        const key = this.security.sanitizeInput(document.getElementById('apiKey').value);
-        const url = this.security.sanitizeInput(document.getElementById('apiUrl').value) || 'https://agentrouter.org';
-        const description = this.security.sanitizeInput(document.getElementById('apiDescription').value);
+        const name = this.security.sanitizeInput(document.getElementById('apiName').value.trim());
+        const key = document.getElementById('apiKey').value.trim();
+        const url = this.security.sanitizeInput(document.getElementById('apiUrl').value.trim()) || 'https://agentrouter.org';
+
+        if (!name) {
+            this.showNotification('Nama API harus diisi', 'error');
+            return;
+        }
 
         if (!this.validateApiKey(key)) {
-            this.showNotification('Format API key tidak valid', 'error');
+            this.showNotification('API key tidak valid (minimal 20 karakter)', 'error');
             return;
         }
 
@@ -186,7 +338,6 @@ class GuiAiBeta {
             name,
             key,
             url,
-            description,
             provider: detected.provider,
             providerName: detected.name,
             providerIcon: detected.icon,
@@ -196,90 +347,123 @@ class GuiAiBeta {
             connectionStatus: 'inactive'
         };
 
+        // Test connection immediately after adding
+        this.showNotification('Menambahkan API dan testing koneksi...', 'success');
+        
+        try {
+            const isConnected = await this.testApiConnection(api);
+            if (isConnected) {
+                api.connectionStatus = 'active';
+                api.lastUsed = new Date().toISOString();
+                this.showNotification(`${detected.name} API berhasil ditambahkan dan terhubung`, 'success');
+            } else {
+                api.connectionStatus = 'inactive';
+                this.showNotification(`${detected.name} API ditambahkan tapi gagal terhubung`, 'error');
+            }
+        } catch (error) {
+            api.connectionStatus = 'inactive';
+            this.showNotification(`${detected.name} API ditambahkan tapi koneksi error: ${error.message}`, 'error');
+        }
+
         this.apis.push(api);
         this.saveToStorage();
         this.renderApiList();
-        this.loadAvailableModels();
+        this.checkAndShowInterface();
         this.clearForm();
-        this.showNotification(`${detected.name} API berhasil ditambahkan`, 'success');
     }
 
-    deleteApi(id) {
-        if (confirm('Hapus API ini?')) {
-            this.apis = this.apis.filter(api => api.id !== id);
-            this.saveToStorage();
-            this.renderApiList();
-            this.loadAvailableModels();
-            this.showNotification('API berhasil dihapus', 'success');
+    async testApiConnection(api) {
+        try {
+            const testPayload = {
+                model: 'gpt-3.5-turbo',
+                messages: [{ role: 'user', content: 'Hi' }],
+                max_tokens: 10
+            };
+
+            const response = await fetch(`${api.url}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${api.key}`,
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'GUI-AI-BETA/1.0'
+                },
+                body: JSON.stringify(testPayload)
+            });
+
+            return response.ok || response.status === 401 || response.status === 403;
+        } catch (error) {
+            console.error('Connection test error:', error);
+            return false;
         }
     }
 
-    copyApiKey(key) {
-        navigator.clipboard.writeText(key).then(() => {
-            this.showNotification('API Key disalin ke clipboard', 'success');
-        }).catch(() => {
-            this.showNotification('Gagal menyalin API Key', 'error');
-        });
-    }
+    // Check and show interface based on connection status
+    checkAndShowInterface() {
+        const connectedApis = this.apis.filter(api => api.connectionStatus === 'active');
+        const modelButtonsSection = document.getElementById('modelButtonsSection');
 
-    togglePasswordVisibility() {
-        const keyInput = document.getElementById('apiKey');
-        const toggleBtn = document.getElementById('toggleKey');
-        const icon = toggleBtn.querySelector('i');
-
-        if (keyInput.type === 'password') {
-            keyInput.type = 'text';
-            icon.className = 'fas fa-eye-slash';
+        if (connectedApis.length === 0) {
+            // No connected APIs - show welcome panel
+            if (modelButtonsSection) modelButtonsSection.style.display = 'none';
+            this.showPanel('welcome');
         } else {
-            keyInput.type = 'password';
-            icon.className = 'fas fa-eye';
+            // Has connected APIs - show model buttons and load models
+            if (modelButtonsSection) modelButtonsSection.style.display = 'flex';
+            this.loadAvailableModels();
+            
+            // Show chat panel by default when connected
+            if (this.currentPanel === 'welcome') {
+                this.showPanel('chat');
+            }
         }
     }
 
     loadAvailableModels() {
-        const modelCard = document.getElementById('modelSelectionCard');
-        const chatCard = document.getElementById('chatCard');
         const modelsList = document.getElementById('modelsList');
         const modelSelect = document.getElementById('selectedModel');
 
-        if (this.apis.length === 0) {
-            modelCard.style.display = 'none';
-            chatCard.style.display = 'none';
+        // Only load models from connected APIs
+        const connectedApis = this.apis.filter(api => api.connectionStatus === 'active');
+
+        if (connectedApis.length === 0) {
             return;
         }
 
-        modelCard.style.display = 'block';
-        chatCard.style.display = 'block';
-        modelsList.innerHTML = '';
-        modelSelect.innerHTML = '<option value="">Pilih Model AI</option>';
+        if (modelsList) modelsList.innerHTML = '';
+        if (modelSelect) modelSelect.innerHTML = '<option value="">Pilih Model AI</option>';
 
-        this.apis.forEach(api => {
+        connectedApis.forEach(api => {
             const models = this.getAvailableModels(api);
             
             models.forEach(model => {
-                const modelItem = document.createElement('div');
-                modelItem.className = 'model-item';
-                modelItem.innerHTML = `
-                    <div class="model-icon">
-                        <i class="fas ${api.providerIcon}"></i>
-                    </div>
-                    <div class="model-info">
-                        <div class="model-name">${model.name}</div>
-                        <div class="model-description">${model.description}</div>
-                        <div class="model-provider">${api.providerName} - ${api.name}</div>
-                    </div>
-                `;
+                if (modelsList) {
+                    const modelItem = document.createElement('div');
+                    modelItem.className = 'model-item';
+                    modelItem.innerHTML = `
+                        <div class="model-icon">
+                            <i class="fas ${api.providerIcon}"></i>
+                        </div>
+                        <div class="model-info">
+                            <div class="model-name">${model.name}</div>
+                            <div class="model-description">${model.description}</div>
+                        </div>
+                    `;
 
-                modelItem.addEventListener('click', () => {
-                    this.selectModel(api.id, model, modelItem);
-                });
+                    modelItem.addEventListener('click', () => {
+                        this.selectModel(api.id, model, modelItem);
+                        // Auto switch to chat after selecting model
+                        this.showPanel('chat');
+                    });
 
-                modelsList.appendChild(modelItem);
+                    modelsList.appendChild(modelItem);
+                }
 
-                const option = document.createElement('option');
-                option.value = `${api.id}:${model.id}`;
-                option.textContent = `${model.name} (${api.providerName})`;
-                modelSelect.appendChild(option);
+                if (modelSelect) {
+                    const option = document.createElement('option');
+                    option.value = `${api.id}:${model.id}`;
+                    option.textContent = `${model.name} (${api.providerName})`;
+                    modelSelect.appendChild(option);
+                }
             });
         });
     }
@@ -294,7 +478,10 @@ class GuiAiBeta {
         }
 
         this.selectedModel = { apiId, model };
-        document.getElementById('selectedModel').value = `${apiId}:${model.id}`;
+        const modelSelect = document.getElementById('selectedModel');
+        if (modelSelect) {
+            modelSelect.value = `${apiId}:${model.id}`;
+        }
         this.showNotification(`Model ${model.name} dipilih`, 'success');
     }
 
@@ -302,7 +489,8 @@ class GuiAiBeta {
         const modelItems = document.querySelectorAll('.model-item');
         modelItems.forEach(item => {
             item.classList.remove('selected');
-            if (item.querySelector('.model-name').textContent === model.name) {
+            const modelName = item.querySelector('.model-name');
+            if (modelName && modelName.textContent === model.name) {
                 item.classList.add('selected');
             }
         });
@@ -313,9 +501,14 @@ class GuiAiBeta {
 
     async sendMessage() {
         const input = document.getElementById('chatInput');
+        if (!input) return;
+        
         const message = input.value.trim();
 
-        if (!message) return;
+        if (!message) {
+            this.showNotification('Ketik pesan terlebih dahulu', 'error');
+            return;
+        }
 
         if (!this.selectedModel) {
             this.showNotification('Pilih model AI terlebih dahulu', 'error');
@@ -351,13 +544,14 @@ class GuiAiBeta {
         } catch (error) {
             this.removeChatMessage(typingMessage);
             this.addChatMessage(`Error: ${error.message}`, 'ai');
-            this.showNotification('Gagal mengirim pesan', 'error');
+            this.showNotification('Gagal mengirim pesan: ' + error.message, 'error');
             
             const api = this.apis.find(a => a.id === this.selectedModel.apiId);
             if (api) {
                 api.connectionStatus = 'inactive';
                 this.saveToStorage();
                 this.renderApiList();
+                this.checkAndShowInterface(); // Re-check interface after connection failure
             }
         }
     }
@@ -372,14 +566,12 @@ class GuiAiBeta {
         const api = this.apis.find(a => a.id === this.selectedModel.apiId);
         if (!api) throw new Error('API tidak ditemukan');
 
-        const sanitizedMessage = this.security.sanitizeInput(message);
-
         const payload = {
             model: this.selectedModel.model.id,
             messages: [
                 {
                     role: 'user',
-                    content: sanitizedMessage
+                    content: message
                 }
             ],
             max_tokens: 2000,
@@ -391,30 +583,33 @@ class GuiAiBeta {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${api.key}`,
-                'User-Agent': 'GUI-AI-BETA/1.0',
-                'X-Session-ID': this.sessionId
+                'User-Agent': 'GUI-AI-BETA/1.0'
             },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error?.message || errorMessage;
+            } catch (e) {
+                // Ignore JSON parse errors
+            }
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
         return data.choices?.[0]?.message?.content || 'Tidak ada respon dari AI';
     }
 
-    addChatMessage(message, type, isTemporary = false) {
+    addChatMessage(message, type) {
         const messagesContainer = document.getElementById('chatMessages');
+        if (!messagesContainer) return null;
+        
         const messageDiv = document.createElement('div');
         messageDiv.className = `chat-message ${type}`;
         messageDiv.textContent = message;
-        
-        if (isTemporary) {
-            messageDiv.setAttribute('data-temporary', 'true');
-        }
 
         messagesContainer.appendChild(messageDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -430,17 +625,69 @@ class GuiAiBeta {
 
     clearChat() {
         if (confirm('Hapus semua pesan chat?')) {
-            document.getElementById('chatMessages').innerHTML = '';
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                chatMessages.innerHTML = '';
+            }
             this.currentConversation = [];
+            this.saveToStorage();
             this.showNotification('Chat berhasil dihapus', 'success');
+        }
+    }
+
+    deleteApi(id) {
+        if (confirm('Hapus API ini?')) {
+            this.apis = this.apis.filter(api => api.id !== id);
+            this.saveToStorage();
+            this.renderApiList();
+            this.checkAndShowInterface(); // Re-check interface after API deletion
+            this.showNotification('API berhasil dihapus', 'success');
+        }
+    }
+
+    copyApiKey(key) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(key).then(() => {
+                this.showNotification('API Key disalin ke clipboard', 'success');
+            }).catch(() => {
+                this.showNotification('Gagal menyalin API Key', 'error');
+            });
+        } else {
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = key;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                this.showNotification('API Key disalin ke clipboard', 'success');
+            } catch (err) {
+                this.showNotification('Gagal menyalin API Key', 'error');
+            }
+            document.body.removeChild(textArea);
+        }
+    }
+
+    togglePasswordVisibility() {
+        const keyInput = document.getElementById('apiKey');
+        const toggleBtn = document.getElementById('toggleKey');
+        const icon = toggleBtn.querySelector('i');
+
+        if (keyInput.type === 'password') {
+            keyInput.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            keyInput.type = 'password';
+            icon.className = 'fas fa-eye';
         }
     }
 
     renderApiList() {
         const container = document.getElementById('apiList');
+        if (!container) return;
         
         if (this.apis.length === 0) {
-            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Belum ada API yang tersimpan</p>';
+            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 20px;">Belum ada API yang tersimpan</p>';
             return;
         }
 
@@ -455,21 +702,20 @@ class GuiAiBeta {
                 </h3>
                 <p><strong>Provider:</strong> ${api.providerName} <i class="fas ${api.providerIcon}"></i></p>
                 <p><strong>URL:</strong> ${api.url}</p>
-                <p><strong>Deskripsi:</strong> ${api.description || 'Tidak ada deskripsi'}</p>
                 <p><strong>Dibuat:</strong> ${new Date(api.createdAt).toLocaleDateString('id-ID')}</p>
                 ${api.lastUsed ? `<p><strong>Terakhir digunakan:</strong> ${new Date(api.lastUsed).toLocaleDateString('id-ID')}</p>` : ''}
                 <div class="api-key-display">
                     ${this.maskApiKey(api.key)}
                 </div>
                 <div class="api-actions">
-                    <button class="btn-secondary" onclick="guiAi.copyApiKey('${api.key}')">
-                        <i class="fas fa-copy"></i> Copy Key
+                    <button class="btn-secondary" onclick="guiAi.copyApiKey('${api.key.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-copy"></i> Copy
                     </button>
                     <button class="btn-secondary" onclick="guiAi.testConnection('${api.id}')">
                         <i class="fas fa-plug"></i> Test
                     </button>
                     <button class="btn-danger" onclick="guiAi.deleteApi('${api.id}')">
-                        <i class="fas fa-trash"></i> Hapus
+                        <i class="fas fa-trash"></i> Del
                     </button>
                 </div>
             </div>
@@ -477,13 +723,19 @@ class GuiAiBeta {
     }
 
     maskApiKey(key) {
-        if (key.length <= 8) return '*'.repeat(key.length);
-        return key.substring(0, 6) + '*'.repeat(key.length - 12) + key.substring(key.length - 6);
+        if (!key || key.length <= 8) return '*'.repeat(8);
+        return key.substring(0, 6) + '*'.repeat(Math.max(8, key.length - 12)) + key.substring(key.length - 6);
     }
 
     clearForm() {
-        document.getElementById('apiForm').reset();
-        document.getElementById('apiUrl').value = 'https://agentrouter.org';
+        const form = document.getElementById('apiForm');
+        if (form) {
+            form.reset();
+            const urlInput = document.getElementById('apiUrl');
+            if (urlInput) {
+                urlInput.value = 'https://agentrouter.org';
+            }
+        }
     }
 
     showNotification(message, type) {
@@ -495,66 +747,101 @@ class GuiAiBeta {
         
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.4s ease';
-            setTimeout(() => notification.remove(), 400);
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 400);
         }, 3000);
     }
 
     async saveToStorage() {
         try {
-            const encryptedApis = await this.security.encryptData(this.apis);
-            const encryptedConversations = await this.security.encryptData(this.currentConversation);
+            if (this.security && typeof this.security.encryptData === 'function') {
+                const encryptedApis = await this.security.encryptData(this.apis);
+                const encryptedConversations = await this.security.encryptData(this.currentConversation);
+                
+                localStorage.setItem('guiAiBeta_apis_encrypted', JSON.stringify(encryptedApis));
+                localStorage.setItem('guiAiBeta_conversations_encrypted', JSON.stringify(encryptedConversations));
+            } else {
+                localStorage.setItem('guiAiBeta_apis', JSON.stringify(this.apis));
+                localStorage.setItem('guiAiBeta_conversations', JSON.stringify(this.currentConversation));
+            }
             
-            localStorage.setItem('guiAiBeta_apis_encrypted', JSON.stringify(encryptedApis));
-            localStorage.setItem('guiAiBeta_conversations_encrypted', JSON.stringify(encryptedConversations));
             localStorage.setItem('guiAiBeta_session', this.sessionId);
+            localStorage.setItem('gui-ai-theme', this.currentTheme);
             
         } catch (error) {
-            console.error('Gagal mengenkripsi data:', error);
-            this.showNotification('Gagal menyimpan data dengan aman', 'error');
+            console.error('Gagal menyimpan data:', error);
+            localStorage.setItem('guiAiBeta_apis', JSON.stringify(this.apis));
+            localStorage.setItem('guiAiBeta_conversations', JSON.stringify(this.currentConversation));
         }
     }
 
     async loadFromStorage() {
         try {
             const encryptedApis = localStorage.getItem('guiAiBeta_apis_encrypted');
-            const encryptedConversations = localStorage.getItem('guiAiBeta_conversations_encrypted');
             
-            if (encryptedApis) {
+            if (encryptedApis && this.security && typeof this.security.decryptData === 'function') {
                 const decryptedApis = await this.security.decryptData(JSON.parse(encryptedApis));
-                return decryptedApis;
+                return Array.isArray(decryptedApis) ? decryptedApis : [];
             }
             
-            const legacyApis = localStorage.getItem('guiAiBeta_apis');
-            if (legacyApis) {
-                const apis = JSON.parse(legacyApis);
-                localStorage.removeItem('guiAiBeta_apis');
-                return apis;
+            const plainApis = localStorage.getItem('guiAiBeta_apis');
+            if (plainApis) {
+                const apis = JSON.parse(plainApis);
+                return Array.isArray(apis) ? apis : [];
             }
             
             return [];
         } catch (error) {
-            console.error('Gagal mendekripsi data:', error);
-            this.showNotification('Gagal memuat data terenkripsi', 'error');
+            console.error('Gagal memuat data:', error);
             return [];
+        }
+    }
+
+    async loadConversationHistory() {
+        try {
+            const encryptedConversations = localStorage.getItem('guiAiBeta_conversations_encrypted');
+            
+            if (encryptedConversations && this.security && typeof this.security.decryptData === 'function') {
+                const decryptedConversations = await this.security.decryptData(JSON.parse(encryptedConversations));
+                this.currentConversation = Array.isArray(decryptedConversations) ? decryptedConversations : [];
+            } else {
+                const plainConversations = localStorage.getItem('guiAiBeta_conversations');
+                if (plainConversations) {
+                    this.currentConversation = JSON.parse(plainConversations) || [];
+                }
+            }
+            
+            const messagesContainer = document.getElementById('chatMessages');
+            if (messagesContainer && this.currentConversation.length > 0) {
+                messagesContainer.innerHTML = '';
+                this.currentConversation.forEach(conv => {
+                    this.addChatMessage(conv.user, 'user');
+                    this.addChatMessage(conv.ai, 'ai');
+                });
+            }
+            
+        } catch (error) {
+            console.error('Gagal memuat conversation history:', error);
+            this.currentConversation = [];
         }
     }
 
     async testConnection(apiId) {
         const api = this.apis.find(a => a.id === apiId);
-        if (!api) return;
+        if (!api) {
+            this.showNotification('API tidak ditemukan', 'error');
+            return;
+        }
 
         this.showNotification('Testing koneksi...', 'success');
 
         try {
-            const response = await fetch(`${api.url}/v1/models`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${api.key}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
+            const isConnected = await this.testApiConnection(api);
+            
+            if (isConnected) {
                 api.connectionStatus = 'active';
                 api.lastUsed = new Date().toISOString();
                 this.showNotification('Koneksi berhasil', 'success');
@@ -569,12 +856,13 @@ class GuiAiBeta {
 
         this.saveToStorage();
         this.renderApiList();
+        this.checkAndShowInterface(); // Re-check interface after testing
     }
 
     exportData() {
         const maskedApis = this.apis.map(api => ({
             ...api,
-            key: this.security.maskSensitiveData(api.key)
+            key: this.security.maskSensitiveData ? this.security.maskSensitiveData(api.key) : this.maskApiKey(api.key)
         }));
 
         const data = {
@@ -608,52 +896,58 @@ class GuiAiBeta {
             try {
                 const data = JSON.parse(e.target.result);
                 
-                if (data.apis) {
-                    this.apis = data.apis;
-                    await this.saveToStorage();
-                    this.renderApiList();
-                    this.loadAvailableModels();
+                if (data.apis && Array.isArray(data.apis)) {
+                    const hasRealKeys = data.apis.some(api => 
+                        api.key && !api.key.includes('*') && api.key.length > 20
+                    );
+                    
+                    if (hasRealKeys || confirm('Import data ini? (API keys yang ada akan ditimpa)')) {
+                        this.apis = data.apis;
+                        await this.saveToStorage();
+                        this.renderApiList();
+                        this.checkAndShowInterface();
+                    }
                 }
                 
-                if (data.conversations) {
+                if (data.conversations && Array.isArray(data.conversations)) {
                     this.currentConversation = data.conversations;
-                    this.loadConversationHistory();
+                    await this.loadConversationHistory();
                 }
 
-                if (data.theme) {
-                    this.changeTheme(data.theme);
+                if (data.theme && this.themes.includes(data.theme)) {
+                    this.currentTheme = data.theme;
+                    document.body.setAttribute('data-theme', this.currentTheme);
+                    localStorage.setItem('gui-ai-theme', this.currentTheme);
+                    this.updateThemeIcon();
                 }
                 
                 this.showNotification('Data berhasil diimpor', 'success');
             } catch (error) {
-                this.showNotification('File tidak valid', 'error');
+                this.showNotification('File tidak valid atau rusak', 'error');
+                console.error('Import error:', error);
             }
         };
         reader.readAsText(file);
     }
 
-    loadConversationHistory() {
-        const messagesContainer = document.getElementById('chatMessages');
-        messagesContainer.innerHTML = '';
-        
-        this.currentConversation.forEach(conv => {
-            this.addChatMessage(conv.user, 'user');
-            this.addChatMessage(conv.ai, 'ai');
-        });
-    }
-
     async testAllConnections() {
+        if (this.apis.length === 0) {
+            this.showNotification('Tidak ada API untuk ditest', 'error');
+            return;
+        }
+
         this.showNotification('Testing semua koneksi API...', 'success');
         
         for (const api of this.apis) {
             await this.testConnection(api.id);
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         this.showNotification('Test koneksi selesai', 'success');
     }
 
     resetAllData() {
-        if (confirm('Hapus semua data termasuk API keys dan conversation history?')) {
+        if (confirm('Hapus semua data termasuk API keys dan conversation history?\n\nPeringatan: Tindakan ini tidak dapat dibatalkan!')) {
             localStorage.removeItem('guiAiBeta_apis_encrypted');
             localStorage.removeItem('guiAiBeta_conversations_encrypted');
             localStorage.removeItem('guiAiBeta_apis');
@@ -665,97 +959,66 @@ class GuiAiBeta {
             this.selectedModel = null;
             
             this.renderApiList();
-            this.loadAvailableModels();
-            document.getElementById('chatMessages').innerHTML = '';
+            this.checkAndShowInterface();
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                chatMessages.innerHTML = '';
+            }
             
             this.showNotification('Semua data berhasil dihapus', 'success');
         }
     }
 
     generateApiKeyReport() {
+        const activeApis = this.apis.filter(api => api.connectionStatus === 'active');
+        const providers = [...new Set(this.apis.map(api => api.providerName))];
+        const lastActivity = this.apis.reduce((latest, api) => {
+            if (!api.lastUsed) return latest;
+            const apiDate = new Date(api.lastUsed);
+            return !latest || apiDate > latest ? apiDate : latest;
+        }, null);
+
         const report = {
             totalApis: this.apis.length,
-            activeApis: this.apis.filter(api => api.connectionStatus === 'active').length,
-            providers: [...new Set(this.apis.map(api => api.providerName))],
+            activeApis: activeApis.length,
+            inactiveApis: this.apis.length - activeApis.length,
+            providers: providers,
             totalConversations: this.currentConversation.length,
-            lastActivity: this.apis.reduce((latest, api) => {
-                if (!api.lastUsed) return latest;
-                const apiDate = new Date(api.lastUsed);
-                return !latest || apiDate > latest ? apiDate : latest;
-            }, null),
+            lastActivity: lastActivity ? lastActivity.toISOString() : null,
             currentTheme: this.currentTheme,
+            currentPanel: this.currentPanel,
             reportGenerated: new Date().toISOString()
         };
         
-        console.table(report);
-        this.showNotification('Report generated in console', 'success');
+        console.group('📊 GUI AI Beta Report');
+        console.log('Total APIs:', report.totalApis);
+        console.log('Active APIs:', report.activeApis);
+        console.log('Inactive APIs:', report.inactiveApis);
+        console.log('Providers:', report.providers.join(', '));
+        console.log('Total Conversations:', report.totalConversations);
+        console.log('Last Activity:', report.lastActivity || 'Never');
+        console.log('Current Theme:', report.currentTheme);
+        console.log('Current Panel:', report.currentPanel);
+        console.log('Generated:', report.reportGenerated);
+        console.groupEnd();
+        
+        this.showNotification('Report generated in console (F12)', 'success');
         return report;
     }
 }
 
+// Initialize the application
 const guiAi = new GuiAiBeta();
 
-document.addEventListener('DOMContentLoaded', () => {
-    const exportBtn = document.createElement('button');
-    exportBtn.innerHTML = '<i class="fas fa-download"></i> Export';
-    exportBtn.className = 'btn-secondary';
-    exportBtn.onclick = () => guiAi.exportData();
-    
-    const importInput = document.createElement('input');
-    importInput.type = 'file';
-    importInput.accept = '.json';
-    importInput.style.display = 'none';
-    importInput.onchange = (e) => {
-        if (e.target.files[0]) {
-            guiAi.importData(e.target.files[0]);
-        }
-    };
-    
-    const importBtn = document.createElement('button');
-    importBtn.innerHTML = '<i class="fas fa-upload"></i> Import';
-    importBtn.className = 'btn-secondary';
-    importBtn.onclick = () => importInput.click();
-    
-    const testAllBtn = document.createElement('button');
-    testAllBtn.innerHTML = '<i class="fas fa-check-circle"></i> Test All';
-    testAllBtn.className = 'btn-secondary';
-    testAllBtn.onclick = () => guiAi.testAllConnections();
-    
-    const resetBtn = document.createElement('button');
-    resetBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Reset All';
-    resetBtn.className = 'btn-danger';
-    resetBtn.onclick = () => guiAi.resetAllData();
-    
-    const reportBtn = document.createElement('button');
-    reportBtn.innerHTML = '<i class="fas fa-chart-bar"></i> Report';
-    reportBtn.className = 'btn-secondary';
-    reportBtn.onclick = () => guiAi.generateApiKeyReport();
-    
-    const header = document.querySelector('header');
-    const controlsContainer = document.createElement('div');
-    controlsContainer.className = 'controls-container';
-    
-    controlsContainer.appendChild(exportBtn);
-    controlsContainer.appendChild(importBtn);
-    controlsContainer.appendChild(testAllBtn);
-    controlsContainer.appendChild(reportBtn);
-    controlsContainer.appendChild(resetBtn);
-    controlsContainer.appendChild(importInput);
-    
-    header.appendChild(controlsContainer);
-    
-    const versionInfo = document.createElement('div');
-    versionInfo.innerHTML = '<small>Version 1.0 BETA | AgentRouter Integration | Neomorphism Design</small>';
-    versionInfo.className = 'version-info';
-    versionInfo.style.marginTop = '15px';
-    versionInfo.style.opacity = '0.7';
-    header.appendChild(versionInfo);
+// Global error handler
+window.addEventListener('error', (e) => {
+    console.error('Global error:', e.error);
+    if (window.guiAi) {
+        guiAi.showNotification('Terjadi error, silakan refresh halaman', 'error');
+    }
 });
 
-window.addEventListener('beforeunload', () => {
-    guiAi.saveToStorage();
-});
-
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey) {
         switch(e.key) {
@@ -772,21 +1035,21 @@ document.addEventListener('keydown', (e) => {
                 e.preventDefault();
                 guiAi.generateApiKeyReport();
                 break;
+            case 't':
+                e.preventDefault();
+                guiAi.toggleTheme();
+                break;
             case '1':
                 e.preventDefault();
-                guiAi.changeTheme('light');
+                if (guiAi.apis.filter(api => api.connectionStatus === 'active').length > 0) {
+                    guiAi.showPanel('models');
+                }
                 break;
             case '2':
                 e.preventDefault();
-                guiAi.changeTheme('dark');
-                break;
-            case '3':
-                e.preventDefault();
-                guiAi.changeTheme('blue');
-                break;
-            case '4':
-                e.preventDefault();
-                guiAi.changeTheme('purple');
+                if (guiAi.apis.filter(api => api.connectionStatus === 'active').length > 0) {
+                    guiAi.showPanel('chat');
+                }
                 break;
         }
     }
@@ -796,5 +1059,33 @@ document.addEventListener('keydown', (e) => {
         if (chatInput === document.activeElement) {
             chatInput.blur();
         }
+    }
+});
+
+// Auto-save on page unload
+window.addEventListener('beforeunload', () => {
+    if (window.guiAi) {
+        guiAi.saveToStorage();
+    }
+});
+
+// Service worker registration for offline support (optional)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+                console.log('SW registered: ', registration);
+            })
+            .catch((registrationError) => {
+                console.log('SW registration failed: ', registrationError);
+            });
+    });
+}
+
+// Update footer with keyboard shortcuts info
+document.addEventListener('DOMContentLoaded', () => {
+    const footer = document.querySelector('footer p');
+    if (footer) {
+        footer.innerHTML = 'GUI AI BETA v1.0 - Powered by AgentRouter<br><small>Shortcuts: Ctrl+T (theme), Ctrl+E (export), Ctrl+S (save), Ctrl+R (report), Ctrl+1 (models), Ctrl+2 (chat)</small>';
     }
 });
