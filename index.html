@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUI AI BETA</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="theme-selector">
+        <button class="theme-btn" data-theme="light" title="Light Neomorphism">
+            <i class="fas fa-sun"></i>
+        </button>
+        <button class="theme-btn" data-theme="dark" title="Dark Neomorphism">
+            <i class="fas fa-moon"></i>
+        </button>
+        <button class="theme-btn" data-theme="blue" title="Blue Neomorphism">
+            <i class="fas fa-water"></i>
+        </button>
+        <button class="theme-btn" data-theme="purple" title="Purple Neomorphism">
+            <i class="fas fa-gem"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-robot"></i> GUI AI BETA</h1>
+            <p>Interface untuk mengelola dan berinteraksi dengan AI models</p>
+        </header>
+
+        <div class="main-content">
+            <div class="card">
+                <h2><i class="fas fa-key"></i> API Key Management</h2>
+                <form id="apiForm">
+                    <div class="form-group">
+                        <label for="apiName">Nama API:</label>
+                        <input type="text" id="apiName" placeholder="Contoh: OpenAI API" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apiKey">API Key:</label>
+                        <input type="password" id="apiKey" placeholder="Masukkan API key" required>
+                        <button type="button" id="toggleKey" class="toggle-btn">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apiUrl">Base URL:</label>
+                        <input type="url" id="apiUrl" value="https://agentrouter.org" placeholder="https://agentrouter.org">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="apiDescription">Deskripsi:</label>
+                        <textarea id="apiDescription" placeholder="Deskripsi API ini"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Simpan API
+                    </button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2><i class="fas fa-list"></i> API Tersimpan</h2>
+                <div id="apiList" class="api-list"></div>
+            </div>
+
+            <div class="card" id="modelSelectionCard" style="display: none;">
+                <h2><i class="fas fa-brain"></i> AI Models Available</h2>
+                <div id="modelsList" class="models-container"></div>
+            </div>
+
+            <div class="card" id="chatCard" style="display: none;">
+                <h2><i class="fas fa-comments"></i> AI Chat Interface</h2>
+                <div class="chat-container">
+                    <div class="chat-header">
+                        <select id="selectedModel" class="form-control">
+                            <option value="">Pilih Model AI</option>
+                        </select>
+                        <button id="clearChat" class="btn-secondary">
+                            <i class="fas fa-trash"></i> Clear Chat
+                        </button>
+                    </div>
+                    <div id="chatMessages" class="chat-messages"></div>
+                    <div class="chat-input-container">
+                        <div class="input-group">
+                            <textarea id="chatInput" placeholder="Ketik pesan Anda..." rows="3"></textarea>
+                            <button id="sendMessage" class="btn-primary">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>GUI AI BETA - Powered by AgentRouter</p>
+        </footer>
+    </div>
+
+    <script src="security.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
